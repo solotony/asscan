@@ -3,7 +3,7 @@
 require_once('CDirInfo.php');
 require_once('CFileInfo.php');
 
-$GLOBALS['version'] = '1.0.0';
+$GLOBALS['version'] = '1.0.1';
 $GLOBALS['author'] = 'Antonio Solo  as@solotony.com';
 
 try
@@ -27,21 +27,45 @@ try
     elseif ($GLOBALS['cmd'] == 'comp') {
         do_compare_last();
     }
+    elseif ($GLOBALS['cmd'] == 'clean') {
+        do_clean();
+    }
     elseif ($GLOBALS['cmd'] == 'compba') {
         do_compare_ba();
     }
+    elseif ($GLOBALS['cmd'] == 'genpwd') {
+        echo "Пароль: " . $_GET['password'] . $GLOBALS['br'];
+        echo "Хеш: " . password_hash($_GET['password'], PASSWORD_BCRYPT) . $GLOBALS['br'];
+    }
     elseif ($GLOBALS['cmd'] == 'show') {
+        if ($GLOBALS['runhttp']) echo '<pre>';
         var_dump($GLOBALS['settings']);
+        if ($GLOBALS['runhttp']) echo '</pre>';
     }
     else {
         throw new Exception('Команда не распознана'.$GLOBALS['br'].
-        'Допустимые команды:'.$GLOBALS['br'].
-        '  scancomp - сканирует и сравнивает с предыдущим'.$GLOBALS['br'].
-        '  scan - только сканирует'.$GLOBALS['br'].
-        '  scan - только сравнивает с предыдущим'.$GLOBALS['br'].
-        '  compba - сравнивает с первым'.$GLOBALS['br'].
-        '  clean - удаляет все'.$GLOBALS['br'].
-        '  show - показывает конфиг'.$GLOBALS['br']
+            'Запуск из командной строки: '.$GLOBALS['br'].
+            '  asscan -c команда'.$GLOBALS['br'].
+            'Запуск из браузера: '.$GLOBALS['br'].
+            '  http://path/asscan?cmd=команда&password=пароль'.$GLOBALS['br'].
+            'Допустимые команды:'.$GLOBALS['br'].
+            '  scancomp - сканирует и сравнивает с предыдущим'.$GLOBALS['br'].
+            '  scan - только сканирует'.$GLOBALS['br'].
+            '  comp - только сравнивает с предыдущим'.$GLOBALS['br'].
+            '  compba - сравнивает с первым'.$GLOBALS['br'].
+            '  show - показывает конфиг'.$GLOBALS['br'].
+            '  clean - очищает результаты сканирований'.$GLOBALS['br'].
+            '  genpwd - генерирует пароль (используется параметр password)'.$GLOBALS['br'].
+            '  help - этот экран'.$GLOBALS['br'].
+            'Результаты сканирования:'.$GLOBALS['br'].
+            '  F+ добавлен файл'.$GLOBALS['br'].
+            '  F- удален файл'.$GLOBALS['br'].
+            '  F! изменен файл'.$GLOBALS['br'].
+            '  D+ добавлена директория'.$GLOBALS['br'].
+            '  D- удалена директория'.$GLOBALS['br'].
+            '  D! изменена директория'.$GLOBALS['br'].
+            '  F% была директория стал файл'.$GLOBALS['br'].
+            '  D% был файл стала директория'.$GLOBALS['br']
         );
     }
 }
@@ -52,19 +76,6 @@ catch (Exception $e)
 
 function scan_dir($dirname, $isroot = false)
 {
-    if ($isroot)
-    {
-        if ($GLOBALS['settings']['slash'] == '\\')
-        {
-            $dirname = str_replace('/', '\\', $dirname);
-        }
-        else
-        {
-            $dirname = str_replace('\\', '/', $dirname);
-        }
-        $dirname = preg_replace('/\\'.$GLOBALS['settings']['slash'].'$/', '', $dirname);
-    }
-
     $dirnamep = $dirname . $GLOBALS['settings']['slash'];
 
     $dirinfo = new CDirInfo;
@@ -110,6 +121,22 @@ function scan_dir($dirname, $isroot = false)
         }
     }
     return $dirinfo;
+}
+
+function do_clean()
+{
+    if (is_file($GLOBALS['settings']['datafile01'])) {
+        unlink($GLOBALS['settings']['datafile01']);
+    }
+    if (is_file($GLOBALS['settings']['datafile02'])) {
+        unlink($GLOBALS['settings']['datafile02']);
+    }
+    if (is_file($GLOBALS['settings']['datafile03'])) {
+        unlink($GLOBALS['settings']['datafile03']);
+    }
+    if (is_file($GLOBALS['settings']['datafileBA'])) {
+        unlink($GLOBALS['settings']['datafileBA']);
+    }
 }
 
 function export_text_file()
@@ -201,10 +228,15 @@ function do_compare_ba()
 
 function compare_dirs($newdir, $olddir)
 {
+    if (ignored_path($newdir->filepath))
+    {
+        echo 'D* ' . $newdir->filepath . $GLOBALS['br'];
+        return false;
+    }
+
     $changed = false;
     foreach ($newdir->records as $name => $fi)
     {
-        $unset = array();
         if ($oi = $olddir->records[$name])
         {
             unset($olddir->records[$name]);
@@ -338,7 +370,14 @@ function init_mode()
     {
         header("Content-Type: text/html");
         $GLOBALS['br'] = "<br>";
-        $GLOBALS['cmd'] = $_GET['cmd'];
+        if (!isset($_GET['cmd'])||!$_GET['cmd'])
+        {
+            $GLOBALS['cmd'] = 'help';
+        }
+        else
+        {
+            $GLOBALS['cmd'] = $_GET['cmd'];
+        }
     }
     else
     {
@@ -346,9 +385,13 @@ function init_mode()
         $GLOBALS['br'] = "\n";
         if (!$options = getopt ( "c:"))
         {
-            throw new Exception('Недопустимые параметры');
+            $GLOBALS['cmd'] = 'help';
         }
-        $GLOBALS['cmd'] = $options['c'];
+        else
+        {
+            $GLOBALS['cmd'] = $options['c'];
+        }
+
     }
 
     echo $GLOBALS['modeinfo'] . $GLOBALS['br'];
@@ -357,14 +400,44 @@ function init_mode()
     echo 'Текущий каталог:' . getcwd() . $GLOBALS['br'];
     echo 'Команда:' . $GLOBALS['cmd'] . $GLOBALS['br'];
 
+    if ($GLOBALS['cmd'] == 'genpwd') {
+        return true;
+    }
+
     if ($GLOBALS['runhttp'])
     {
         if (!password_verify($_GET['password'], $GLOBALS['settings']['password']))
         {
             sleep(3);
-            throw new Exception('Пароль "' . $_GET['password'] . '" не совпадает'
-               . '<br>' . password_hash($_GET['password'], PASSWORD_BCRYPT) );
+            throw new Exception('Пароль "' . $_GET['password'] . '" не совпадает');
         }
     }
 
+    if ($GLOBALS['settings']['slash'] == '\\')
+    {
+        $GLOBALS['settings']['scanpath'] = str_replace('/', '\\', $GLOBALS['settings']['scanpath']);
+    }
+    else
+    {
+        $GLOBALS['settings']['scanpath'] = str_replace('\\', '/', $GLOBALS['settings']['scanpath']);
+    }
+
+    $GLOBALS['settings']['scanpath'] = preg_replace('/\\'.$GLOBALS['settings']['slash'].'$/', '', $GLOBALS['settings']['scanpath']);
+
+    foreach ($GLOBALS['settings']['ignore'] as $key => $val)
+    {
+        $val = preg_replace('/\\'.$GLOBALS['settings']['slash'].'$/', '', $val);
+        $GLOBALS['settings']['ignore'][$key] = $GLOBALS['settings']['scanpath'] . $GLOBALS['settings']['slash'] . $val;
+    }
+
+    return true;
+}
+
+function ignored_path($dirname)
+{
+    foreach ($GLOBALS['settings']['ignore'] as $key => $val)
+    {
+        if ($dirname == $val) return true;
+    }
+    return false;
 }
