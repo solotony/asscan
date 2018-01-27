@@ -1,7 +1,10 @@
+1.0.3
+    filemtime вместо filectime
+    форма для выполнения команд
 1.0.2
     UTF-8 Header
     info command
-
+    initconfig command
 1.0.1
     Добавлена команда clean
     Добавлена команла genpwd

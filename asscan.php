@@ -3,7 +3,7 @@
 require_once('CDirInfo.php');
 require_once('CFileInfo.php');
 
-$GLOBALS['version'] = '1.0.2';
+$GLOBALS['version'] = '1.0.3';
 $GLOBALS['author'] = 'Antonio Solo  as@solotony.com';
 $GLOBALS['debug'] = true;
 $GLOBALS['files'] = 0;
@@ -91,6 +91,9 @@ catch (Exception $e)
     echo 'Аварийное завершение: ',  $e->getMessage(), "\n";
 }
 
+html_footer();
+exit();
+
 function scan_dir($dirname, $isroot = false)
 {
     $dirnamep = $dirname . $GLOBALS['settings']['slash'];
@@ -176,7 +179,7 @@ function do_info()
 
 function show_file_info($file)
 {
-    echo "Файл $file создан: " . date("F d Y H:i:s.", filectime($file)) . $GLOBALS['br'];;
+    echo "Файл $file создан: " . date("F d Y H:i:s.", filemtime($file)) . $GLOBALS['br'];;
 }
 
 function export_text_file()
@@ -406,7 +409,7 @@ function init_mode()
 
     if ($GLOBALS['runhttp'])
     {
-        header('Content-Type: text/html; charset= utf-8');
+        html_header();
 
         $GLOBALS['br'] = "<br>";
         if (!isset($_GET['cmd'])||!$_GET['cmd'])
@@ -420,7 +423,6 @@ function init_mode()
     }
     else
     {
-        header("Content-Type: text/plain");
         $GLOBALS['br'] = "\n";
         if (!$options = getopt ( "c:"))
         {
@@ -502,4 +504,45 @@ function do_initconfig()
     fwrite($file, ';игнорируемые пути (относительно scanpath)'."\n");
     fwrite($file, 'ignore[] = "asscan"'."\n");
     fclose($file);
+}
+
+function html_header()
+{
+    if ($GLOBALS['runhttp'])
+    {
+        header('Content-Type: text/html; charset= utf-8');
+        echo '<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>AS Scan</title></head><body>';
+    }
+}
+
+function cmd_form()
+{
+    if ($GLOBALS['runhttp'])
+    {
+        echo '<div>';
+        echo '<form action="" method="get">';
+        echo '<select name="cmd">';
+        echo '<option value="scancomp">сканирует и сравнивает с предыдущим</option>';
+        echo '<option value="scan">только сканирует</option>';
+        echo '<option value="comp">только сравнивает с предыдущим</option>';
+        echo '<option value="compba">сравнивает с первым</option>';
+        echo '<option value="show">показывает конфиг</option>';
+        echo '<option value="info">показывает даты сканирований</option>';
+        echo '<option value="help">справка</option>';
+
+        echo '</select><br>';
+        echo '<input type="text" name="password" value="'.htmlspecialchars($_GET['password']).'"><br>';
+        echo '<input type="submit" value="Выполнить">';
+        echo '</form>';
+        echo '</div>';
+    }
+}
+
+function html_footer()
+{
+    if ($GLOBALS['runhttp'])
+    {
+        cmd_form();
+        echo '</body></html>';
+    }
 }
