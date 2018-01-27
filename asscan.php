@@ -3,16 +3,20 @@
 require_once('CDirInfo.php');
 require_once('CFileInfo.php');
 
-$GLOBALS['version'] = '1.0.1';
+$GLOBALS['version'] = '1.0.2';
 $GLOBALS['author'] = 'Antonio Solo  as@solotony.com';
+$GLOBALS['debug'] = true;
+$GLOBALS['files'] = 0;
+$GLOBALS['dirs'] = 0;
 
 try
 {
     init_mode();
 
-    if (!isset($GLOBALS['settings']['scanpath']) || !$GLOBALS['settings']['scanpath'])
-    {
-        throw new Exception('Не задан путь');
+    if (($GLOBALS['cmd'] != 'help')&&($GLOBALS['cmd'] != 'genpwd')&&($GLOBALS['cmd'] != 'initconfig')) {
+        if (!isset($GLOBALS['settings']['scanpath']) || !$GLOBALS['settings']['scanpath']) {
+            throw new Exception('Не задан путь');
+        }
     }
 
     if ($GLOBALS['cmd'] == 'scancomp') {
@@ -21,8 +25,13 @@ try
         do_compare_current();
     }
     elseif ($GLOBALS['cmd'] == 'scan') {
+        if (isset($GLOBALS['debug']) && $GLOBALS['debug']) echo "scan_dir ".$GLOBALS['settings']['scanpath']."<br>";
         $GLOBALS['files'] = scan_dir($GLOBALS['settings']['scanpath'], true);
+        if (isset($GLOBALS['debug']) && $GLOBALS['debug']) echo "export_text_file<br>";
+        //if (isset($GLOBALS['debug']) && $GLOBALS['debug']) echo "scanned ".$GLOBALS['files']."files<br>";
+        //if (isset($GLOBALS['debug']) && $GLOBALS['debug']) echo "scanned ".$GLOBALS['dirs']."dirs<br>";
         export_text_file();
+        if (isset($GLOBALS['debug']) && $GLOBALS['debug']) echo "done<br>";
     }
     elseif ($GLOBALS['cmd'] == 'comp') {
         do_compare_last();
@@ -33,9 +42,15 @@ try
     elseif ($GLOBALS['cmd'] == 'compba') {
         do_compare_ba();
     }
+    elseif ($GLOBALS['cmd'] == 'info') {
+        do_info();
+    }
     elseif ($GLOBALS['cmd'] == 'genpwd') {
         echo "Пароль: " . $_GET['password'] . $GLOBALS['br'];
         echo "Хеш: " . password_hash($_GET['password'], PASSWORD_BCRYPT) . $GLOBALS['br'];
+    }
+    elseif ($GLOBALS['cmd'] == 'initconfig') {
+        do_initconfig();
     }
     elseif ($GLOBALS['cmd'] == 'show') {
         if ($GLOBALS['runhttp']) echo '<pre>';
@@ -56,7 +71,9 @@ try
             '  show - показывает конфиг'.$GLOBALS['br'].
             '  clean - очищает результаты сканирований'.$GLOBALS['br'].
             '  genpwd - генерирует пароль (используется параметр password)'.$GLOBALS['br'].
+            '  info - показывает даты сканирований'.$GLOBALS['br'].
             '  help - этот экран'.$GLOBALS['br'].
+            '  initconfig - создается конфигурационный файл'.$GLOBALS['br'].
             'Результаты сканирования:'.$GLOBALS['br'].
             '  F+ добавлен файл'.$GLOBALS['br'].
             '  F- удален файл'.$GLOBALS['br'].
@@ -88,6 +105,7 @@ function scan_dir($dirname, $isroot = false)
             {
                 if (is_file($dirnamep.$file))
                 {
+                    $GLOBALS['files'] ++;
                     $fi = new CFileInfo;
                     $fi->filename = $file;
                     $fi->filepath = $dirnamep.$file;
@@ -97,6 +115,7 @@ function scan_dir($dirname, $isroot = false)
                 }
                 if (is_dir($dirnamep.$file))
                 {
+                    $GLOBALS['dirs'] ++;
                     if (($file == '.')||($file == '..')) continue;
                     $di = scan_dir($dirnamep.$file, false);
                     $di->name = $file;
@@ -109,7 +128,7 @@ function scan_dir($dirname, $isroot = false)
         {
             if ($isroot)
             {
-                throw new Exception('Не удается открыть корневой путь');
+                throw new Exception('Не удается открыть корневой путь '.$dirname);
             }
         }
     }
@@ -117,7 +136,7 @@ function scan_dir($dirname, $isroot = false)
     {
         if ($isroot)
         {
-            throw new Exception('Корневой путь не существует');
+            throw new Exception('Корневой путь не существует: '.$dirname);
         }
     }
     return $dirinfo;
@@ -139,6 +158,27 @@ function do_clean()
     }
 }
 
+function do_info()
+{
+    if (is_file($GLOBALS['settings']['datafile01'])) {
+        show_file_info($GLOBALS['settings']['datafile01']);
+    }
+    if (is_file($GLOBALS['settings']['datafile02'])) {
+        show_file_info($GLOBALS['settings']['datafile02']);
+    }
+    if (is_file($GLOBALS['settings']['datafile03'])) {
+        show_file_info($GLOBALS['settings']['datafile03']);
+    }
+    if (is_file($GLOBALS['settings']['datafileBA'])) {
+        show_file_info($GLOBALS['settings']['datafileBA']);
+    }
+}
+
+function show_file_info($file)
+{
+    echo "Файл $file создан: " . date("F d Y H:i:s.", filectime($file)) . $GLOBALS['br'];;
+}
+
 function export_text_file()
 {
     if (is_file($GLOBALS['settings']['datafile01'])) {
@@ -150,13 +190,11 @@ function export_text_file()
     if (is_file($GLOBALS['settings']['datafile03'])) {
         rename($GLOBALS['settings']['datafile03'], $GLOBALS['settings']['datafile02']);
     }
-
     if ($fh = fopen($GLOBALS['settings']['datafile03'], 'w+')) {
         $serial = serialize($GLOBALS['files']);
         fprintf($fh, $serial);
         fclose($fh);
     }
-
     if (!is_file($GLOBALS['settings']['datafileBA'])) {
         copy($GLOBALS['settings']['datafile03'], $GLOBALS['settings']['datafileBA']);
     }
@@ -368,7 +406,8 @@ function init_mode()
 
     if ($GLOBALS['runhttp'])
     {
-        header("Content-Type: text/html");
+        header('Content-Type: text/html; charset= utf-8');
+
         $GLOBALS['br'] = "<br>";
         if (!isset($_GET['cmd'])||!$_GET['cmd'])
         {
@@ -400,7 +439,7 @@ function init_mode()
     echo 'Текущий каталог:' . getcwd() . $GLOBALS['br'];
     echo 'Команда:' . $GLOBALS['cmd'] . $GLOBALS['br'];
 
-    if ($GLOBALS['cmd'] == 'genpwd') {
+    if (($GLOBALS['cmd'] == 'genpwd')||($GLOBALS['cmd'] == 'help')||($GLOBALS['cmd'] == 'initconfig')) {
         return true;
     }
 
@@ -440,4 +479,27 @@ function ignored_path($dirname)
         if ($dirname == $val) return true;
     }
     return false;
+}
+
+function do_initconfig()
+{
+    $password = password_hash($_GET['password'], PASSWORD_BCRYPT);
+    $file = fopen('asscan.ini', 'w+');
+
+    fwrite($file, '[settings]'."\n");
+    fwrite($file, '; корневая директория для сканирования'."\n");
+    fwrite($file, 'scanpath='.getcwd()."\n");
+    fwrite($file, '; символ разделения директорий'."\n");
+    fwrite($file, 'slash = "/"'."\n");
+    fwrite($file, '; файлы хранения данных сканирования'."\n");
+    fwrite($file, 'datafileBA = "'.getcwd().'/asnf_scanner_BA.txt"'."\n");
+    fwrite($file, 'datafile01 = "'.getcwd().'/asnf_scanner_01.txt"'."\n");
+    fwrite($file, 'datafile02 = "'.getcwd().'/asnf_scanner_02.txt"'."\n");
+    fwrite($file, 'datafile03 = "'.getcwd().'/asnf_scanner_03.txt"'."\n");
+    fwrite($file, '; пароль сгенерированный командой "genpwd"'."\n");
+    fwrite($file, 'password = "'.$password.'"'."\n");
+    fwrite($file, ';ignored path (related to scanpath)'."\n");
+    fwrite($file, ';игнорируемые пути (относительно scanpath)'."\n");
+    fwrite($file, 'ignore[] = "asscan"'."\n");
+    fclose($file);
 }
