@@ -11,3 +11,28 @@ datafileBA = "C:\WORK\180117_filmebel_virus\ai\asnf_scanner_BA.txt"
 datafile01 = "C:\WORK\180117_filmebel_virus\ai\asnf_scanner_01.txt"
 datafile02 = "C:\WORK\180117_filmebel_virus\ai\asnf_scanner_02.txt"
 datafile03 = "C:\WORK\180117_filmebel_virus\ai\asnf_scanner_03.txt"
+
+Запуск из командной строки: 
+  asscan -c команда
+Запуск из браузера: 
+  http://path/asscan?cmd=команда&password=пароль
+Допустимые команды:
+  scancomp - сканирует и сравнивает с предыдущим
+  scan - только сканирует
+  comp - только сравнивает с предыдущим
+  compba - сравнивает с первым
+  show - показывает конфиг
+  clean - очищает результаты сканирований
+  genpwd - генерирует пароль (используется параметр password)
+  info - показывает даты сканирований
+  help - этот экран
+  initconfig - создается конфигурационный файл
+Результаты сканирования:
+  F+ добавлен файл
+  F- удален файл
+  F! изменен файл
+  D+ добавлена директория
+  D- удалена директория
+  D! изменена директория
+  F% была директория стал файл
+  D% был файл стала директория
